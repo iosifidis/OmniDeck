@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <title>OmniDeck Login</title>
+</head>
+<body>
+<main style="max-width:420px;margin:60px auto;">
+  <div class="card">
+    <div class="brand" style="margin-bottom:16px;">
+      <div class="logo">OD</div>
+      <span>OmniDeck</span>
+    </div>
+    {{with .Error}}
+    <div class="alert">{{.}}</div>
+    {{end}}
+    <form method="POST" action="/login">
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="admin" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="••••••" required>
+      </div>
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;">Login</button>
+    </form>
+  </div>
+</main>
+</body>
+</html>

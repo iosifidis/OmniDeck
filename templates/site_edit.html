@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <title>Edit Site</title>
+</head>
+<body class="{{if .User}}{{if .User.DarkMode}}dark-mode{{end}}{{end}}">
+<header>
+  <div class="brand">
+    <div class="logo">OD</div>
+    <span>OmniDeck</span>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-primary" href="/">Dashboard</a>
+    <a class="btn btn-warning" href="/settings">Settings</a>
+    <a class="btn btn-danger" href="/logout">Logout</a>
+  </div>
+</header>
+<main>
+  <div class="cards">
+    <div class="card form-card">
+      <h3>Edit Site</h3>
+      <form method="POST" action="/site/edit?id={{.Site.ID}}">
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" value="{{.Site.Name}}" required>
+        </div>
+        <div class="field">
+          <label for="url">URL</label>
+          <input type="url" id="url" name="url" value="{{.Site.URL}}" required>
+        </div>
+        <button class="btn btn-primary" type="submit">Save</button>
+      </form>
+    </div>
+  </div>
+</main>
+</body>
+</html>

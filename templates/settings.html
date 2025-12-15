@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <title>OmniDeck Settings</title>
+</head>
+<body class="{{if .User}}{{if .User.DarkMode}}dark-mode{{end}}{{end}}">
+<header>
+  <div class="brand">
+    <div class="logo">OD</div>
+    <span>OmniDeck</span>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-primary" href="/">Dashboard</a>
+    <a class="btn btn-warning" href="/profile">Profile</a>
+    <a class="btn btn-danger" href="/logout">Logout</a>
+  </div>
+</header>
+<main>
+  <div class="cards">
+    <div class="card form-card">
+      <h3>Add Site</h3>
+      <form method="POST" action="/settings">
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" placeholder="My WP Site" required>
+        </div>
+        <div class="field">
+          <label for="url">URL</label>
+          <input type="url" id="url" name="url" placeholder="https://example.com" required>
+        </div>
+        <button class="btn btn-primary" type="submit">Add &amp; Sync</button>
+      </form>
+    </div>
+  </div>
+
+  <h3>Sites</h3>
+  <div class="site-list">
+    {{range .Sites}}
+    <div class="site-item">
+      <div class="flex-between">
+        <div>
+          <strong>{{.Name}}</strong>
+          <div><small>{{.URL}}</small></div>
+        </div>
+        <span class="status-pill {{if eq .Status "UP"}}status-up{{else}}status-down{{end}}">{{.Status}}</span>
+      </div>
+      <div><small>Last Checked: {{if .LastChecked.IsZero}}Never{{else}}{{.LastChecked.Format "2006-01-02 15:04"}}{{end}}</small></div>
+      <div class="button-row" style="margin-top:10px;">
+        <a class="btn btn-warning" href="/site/edit?id={{.ID}}">Edit</a>
+        <form method="POST" action="/site/delete?id={{.ID}}" onsubmit="return confirm('Delete this site?');">
+          <button class="btn btn-danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </div>
+    {{else}}
+    <p>No sites yet. Add one above.</p>
+    {{end}}
+  </div>
+</main>
+</body>
+</html>

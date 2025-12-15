@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <title>Profile</title>
+</head>
+<body class="{{if .User}}{{if .User.DarkMode}}dark-mode{{end}}{{end}}">
+<header>
+  <div class="brand">
+    <div class="logo">OD</div>
+    <span>OmniDeck</span>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-primary" href="/">Dashboard</a>
+    <a class="btn btn-warning" href="/settings">Settings</a>
+    <a class="btn btn-danger" href="/logout">Logout</a>
+  </div>
+</header>
+<main>
+  <div class="cards">
+    <div class="card form-card">
+      <h3>Profile</h3>
+      <form method="POST" action="/profile">
+        <div class="field">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" value="{{.User.Username}}" required>
+        </div>
+        <div class="field">
+          <label for="password">New Password (optional)</label>
+          <input type="password" id="password" name="password" placeholder="Leave blank to keep current">
+        </div>
+        <div class="field" style="flex-direction:row;align-items:center;justify-content:space-between;">
+          <div>
+            <label for="dark_mode">Dark Mode</label>
+            <div><small>Toggle dashboard theme</small></div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="dark_mode" name="dark_mode" {{if .User.DarkMode}}checked{{end}}>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-primary" type="submit">Save</button>
+      </form>
+    </div>
+  </div>
+</main>
+</body>
+</html>

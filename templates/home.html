@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <title>OmniDeck Dashboard</title>
+</head>
+<body class="{{if .User}}{{if .User.DarkMode}}dark-mode{{end}}{{end}}">
+<header>
+  <div class="brand">
+    <div class="logo">OD</div>
+    <span>OmniDeck</span>
+  </div>
+  <div class="header-actions">
+    <span>Hello {{.User.Username}}</span>
+    <a class="btn btn-warning" href="/profile">Profile</a>
+    <a class="btn btn-danger" href="/logout">Logout</a>
+  </div>
+</header>
+<main>
+  <div class="tabs">
+    <button class="tab-button" data-target="analytics">Analytics</button>
+    <button class="tab-button" data-target="status">System Status</button>
+  </div>
+
+  <div id="analytics" class="tab-content">
+    <div class="cards">
+      <div class="card">
+        <h3>Total Sites</h3>
+        <div class="value">{{.TotalSites}}</div>
+      </div>
+      <div class="card">
+        <h3>Total Posts</h3>
+        <div class="value">{{.TotalPosts}}</div>
+      </div>
+    </div>
+
+    <div class="button-row">
+      <form class="filters" method="GET" action="/">
+        <input type="hidden" name="tab" value="analytics">
+        <label for="site">Filter by Site</label>
+        <select name="site" id="site" onchange="this.form.submit()">
+          <option value="">All Sites</option>
+          {{range .Sites}}
+            <option value="{{.ID}}" {{if eq $.FilterSiteID .ID}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </form>
+      <div>
+        <a class="btn btn-success" href="/export{{if .FilterSiteID}}?site={{.FilterSiteID}}{{end}}">Export CSV</a>
+        <a class="btn btn-primary" href="/settings">Manage Sites</a>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>
+              <a href="/?tab=analytics&sort=date&order={{if and (eq $.Sort "date") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}">Date</a>
+            </th>
+            <th>
+              <a href="/?tab=analytics&sort=author&order={{if and (eq $.Sort "author") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}">Author</a>
+            </th>
+            <th>
+              <a href="/?tab=analytics&sort=site&order={{if and (eq $.Sort "site") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}">Site</a>
+            </th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Posts}}
+          <tr>
+            <td>{{.Title}}</td>
+            <td>{{.Date.Format "2006-01-02 15:04"}}</td>
+            <td>{{.Author.Name}}</td>
+            <td>{{.Site.Name}}</td>
+            <td><a href="{{.Link}}" target="_blank" rel="noreferrer">Open</a></td>
+          </tr>
+          {{else}}
+          <tr><td colspan="5">No posts yet.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="status" class="tab-content">
+    <div class="site-list">
+      {{range .Sites}}
+      <div class="site-item">
+        <div class="flex-between">
+          <div>
+            <strong>{{.Name}}</strong>
+            <div><small>{{.URL}}</small></div>
+          </div>
+          <span class="status-pill {{if eq .Status "UP"}}status-up{{else}}status-down{{end}}">{{.Status}}</span>
+        </div>
+        <div><small>Last Checked: {{if .LastChecked.IsZero}}Never{{else}}{{.LastChecked.Format "2006-01-02 15:04"}}{{end}}</small></div>
+      </div>
+      {{else}}
+      <p>No sites configured.</p>
+      {{end}}
+    </div>
+  </div>
+</main>
+
+<script>
+(function() {
+  const active = "{{.ActiveTab}}" || "analytics";
+  const buttons = document.querySelectorAll('.tab-button');
+  const tabs = document.querySelectorAll('.tab-content');
+  function activate(name) {
+    tabs.forEach(t => t.classList.toggle('active', t.id === name));
+    buttons.forEach(b => b.classList.toggle('active', b.dataset.target === name));
+  }
+  buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
+  activate(active);
+})();
+</script>
+</body>
+</html>
