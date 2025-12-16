@@ -1,152 +1,90 @@
-/* Base & Dark Mode */
 :root {
-  --bg-body: #f5f7fb;
-  --bg-card: #ffffff;
-  --text-main: #111827;
-  --text-muted: #6b7280;
-  --primary: #2563eb;
-  --border: #e5e7eb;
+    --primary-color: #0d6efd;
+    --bg-body: #f4f6f9;
+    --text-main: #212529;
 }
-.dark-mode {
-  --bg-body: #0f172a;
-  --bg-card: #1e293b;
-  --text-main: #e5e7eb;
-  --text-muted: #94a3b8;
-  --primary: #3b82f6;
-  --border: #334155;
-}
+
 body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  background: var(--bg-body);
-  color: var(--text-main);
-}
-
-/* Layout */
-header {
-  background: var(--bg-card);
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-}
-main { padding: 24px; max-width: 1400px; margin: auto; }
-
-/* Dashboard Rows */
-.dash-row-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-.stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
-}
-.toolbar-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--bg-card);
-    padding: 10px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border: 1px solid var(--border);
-}
-.toolbar-row > * {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* Components */
-.btn, input, select {
-    height: 38px;
-    box-sizing: border-box;
-    padding: 0 15px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-body);
     color: var(--text-main);
-    font-size: 14px;
-}
-.btn {
-    color: #fff;
-    background: var(--primary);
-    cursor: pointer;
-    font-weight: 600;
-}
-.btn-primary { background: var(--primary); }
-.btn-success { background: #16a34a; }
-.btn-warning { background: #d97706; }
-
-.stat-card {
-    background: var(--bg-card);
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    text-align: center;
-}
-.stat-card label {
-    margin: 0 0 10px;
-    color: var(--text-muted);
-    font-size: 15px;
-    display: block;
-}
-.stat-card .stat-number {
-    font-size: 28px;
-    font-weight: 700;
-    margin: 0 0 10px;
-}
-.stat-card select { width: 100%; }
-
-.tabs { display: flex; gap: 8px; }
-.tab-btn {
-    background: transparent;
-    border: none;
-    padding: 10px 0;
-    font-weight: 600;
-    cursor: pointer;
-    color: var(--text-muted);
-    border-bottom: 2px solid transparent;
-}
-.tab-btn.active {
-    color: var(--text-main);
-    border-bottom-color: var(--primary);
-}
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* Table */
-.table-responsive { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); }
-thead { background: var(--bg-card); }
-
-/* Mobile */
-@media (max-width: 900px) {
-    .dash-row-header, .toolbar-row { flex-direction: column; align-items: stretch; gap: 15px; }
-    .stats-grid { grid-template-columns: 1fr; }
+    transition: background-color 0.3s ease;
 }
 
-/*
-  This file is now only for variable overrides,
-  specifically for dark mode. All layout is handled
-  by Bootstrap 5.
-*/
-
-[data-bs-theme="dark"] {
-  --bs-body-bg: #0f172a;
-  --bs-body-color: #e5e7eb;
-  --bs-tertiary-bg: #1e293b;
-  --bs-border-color: #334155;
-  --bs-table-striped-bg: #1e293b;
-  --bs-table-hover-bg: #334155;
+/* =========================================
+   DARK MODE overrides
+   ========================================= */
+body.dark-mode {
+    background-color: #121212 !important;
+    color: #e0e0e0 !important;
 }
 
-[data-bs-theme="dark"] .bg-light {
-    background-color: #1e293b !important;
+/* 1. Generic Backgrounds (Cards, Header, Toolbar) */
+body.dark-mode header,
+body.dark-mode .card,
+body.dark-mode .bg-white,
+body.dark-mode .bg-light {
+    background-color: #1e1e1e !important;
+    border-color: #333 !important;
+    color: #e0e0e0 !important;
 }
+
+/* 2. Force All Text to be Light */
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, 
+body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+body.dark-mode span, body.dark-mode div, body.dark-mode label,
+body.dark-mode p, body.dark-mode td, body.dark-mode th,
+body.dark-mode .text-muted, body.dark-mode .text-dark {
+    color: #e0e0e0 !important;
+}
+
+/* 3. Fix Form Inputs & Selects */
+body.dark-mode .form-control, 
+body.dark-mode .form-select {
+    background-color: #2d2d2d !important;
+    border-color: #444 !important;
+    color: #fff !important;
+}
+
+/* 4. Fix Table Specifically */
+body.dark-mode .table {
+    --bs-table-bg: #1e1e1e;
+    --bs-table-color: #e0e0e0;
+    --bs-table-striped-bg: #262626;
+    --bs-table-striped-color: #e0e0e0;
+    --bs-table-hover-bg: #333;
+    --bs-table-hover-color: #fff;
+    border-color: #333 !important;
+    color: #e0e0e0 !important;
+}
+
+/* 5. Buttons (Keep Blue with White Text) */
+body.dark-mode .btn-primary {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+    color: #fff !important;
+}
+body.dark-mode .btn-outline-primary {
+    color: #3d8bfd !important;
+    border-color: #3d8bfd !important;
+}
+body.dark-mode .btn-outline-primary:hover {
+    background-color: #3d8bfd !important;
+    color: #fff !important;
+}
+body.dark-mode .btn-outline-secondary {
+    color: #aaa !important;
+    border-color: #666 !important;
+}
+
+/* 6. Header Borders */
+body.dark-mode header {
+    border-bottom: 1px solid #333 !important;
+}
+
+/* Standard Styles */
+.card { box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.btn { font-weight: 500; }
+.status-badge { padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 0.8rem; }
+.status-up { background-color: #d1e7dd; color: #0f5132; }
+.status-down { background-color: #f8d7da; color: #842029; }

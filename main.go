@@ -124,6 +124,7 @@ func main() {
 	mux.HandleFunc("/site/edit", app.handleEditSite)
 	mux.HandleFunc("/site/delete", app.handleDeleteSite)
 	mux.HandleFunc("/profile", app.handleProfile)
+	mux.HandleFunc("/reset-data", app.handleResetData)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	server := &http.Server{
@@ -245,7 +246,7 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 
 	siteFilter := uint(0)
 	selectedSiteName := "All Sites"
-	if v := r.URL.Query().Get("site"); v != "" {
+	if v := r.URL.Query().Get("site_id"); v != "" {
 		if id, err := strconv.Atoi(v); err == nil {
 			siteFilter = uint(id)
 			for _, site := range sites {
@@ -345,7 +346,7 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
 	siteFilter := uint(0)
-	if v := r.URL.Query().Get("site"); v != "" {
+	if v := r.URL.Query().Get("site_id"); v != "" {
 		if id, err := strconv.Atoi(v); err == nil {
 			siteFilter = uint(id)
 		}
@@ -497,6 +498,34 @@ func (a *App) handleProfile(w http.ResponseWriter, r *http.Request) {
 		User *User
 	}{User: user}
 	a.renderTemplate(w, "profile.html", data)
+}
+
+func (a *App) handleResetData(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Delete all posts and authors
+	if err := a.db.Exec("DELETE FROM posts").Error; err != nil {
+		log.Printf("Error deleting posts: %v", err)
+		http.Error(w, "Failed to clear posts", http.StatusInternalServerError)
+		return
+	}
+
+	if err := a.db.Exec("DELETE FROM authors").Error; err != nil {
+		log.Printf("Error deleting authors: %v", err)
+		http.Error(w, "Failed to clear authors", http.StatusInternalServerError)
+		return
+	}
+
+	// Reclaim disk space in SQLite
+	if err := a.db.Exec("VACUUM").Error; err != nil {
+		log.Printf("Warning: VACUUM failed: %v", err)
+	}
+
+	log.Println("Database cleared: all posts and authors deleted")
+	http.Redirect(w, r, "/profile", http.StatusSeeOther)
 }
 
 func (a *App) renderTemplate(w http.ResponseWriter, name string, data any) {
