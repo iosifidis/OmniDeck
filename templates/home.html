@@ -39,12 +39,28 @@
     <div class="button-row">
       <form class="filters" method="GET" action="/">
         <input type="hidden" name="tab" value="analytics">
+        <input type="hidden" name="sort" value="{{.Sort}}">
+        <input type="hidden" name="order" value="{{.Order}}">
+        <input type="hidden" name="limit" value="{{.Limit}}">
         <label for="site">Filter by Site</label>
         <select name="site" id="site" onchange="this.form.submit()">
           <option value="">All Sites</option>
           {{range .Sites}}
             <option value="{{.ID}}" {{if eq $.FilterSiteID .ID}}selected{{end}}>{{.Name}}</option>
           {{end}}
+        </select>
+      </form>
+      <form class="filters" method="GET" action="/" style="margin-left: 10px;">
+        <input type="hidden" name="tab" value="analytics">
+        <input type="hidden" name="sort" value="{{.Sort}}">
+        <input type="hidden" name="order" value="{{.Order}}">
+        {{if .FilterSiteID}}<input type="hidden" name="site" value="{{.FilterSiteID}}">{{end}}
+        <label for="limit">Items per page</label>
+        <select name="limit" id="limit" onchange="this.form.submit()">
+          <option value="10" {{if eq .Limit 10}}selected{{end}}>10</option>
+          <option value="20" {{if eq .Limit 20}}selected{{end}}>20</option>
+          <option value="30" {{if eq .Limit 30}}selected{{end}}>30</option>
+          <option value="50" {{if eq .Limit 50}}selected{{end}}>50</option>
         </select>
       </form>
       <div>
@@ -59,13 +75,13 @@
           <tr>
             <th>Title</th>
             <th>
-              <a href="/?tab=analytics&sort=date&order={{if and (eq $.Sort "date") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}">Date</a>
+              <a href="/?tab=analytics&sort=date&order={{if and (eq $.Sort "date") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}&limit={{.Limit}}">Date</a>
             </th>
             <th>
-              <a href="/?tab=analytics&sort=author&order={{if and (eq $.Sort "author") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}">Author</a>
+              <a href="/?tab=analytics&sort=author&order={{if and (eq $.Sort "author") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}&limit={{.Limit}}">Author</a>
             </th>
             <th>
-              <a href="/?tab=analytics&sort=site&order={{if and (eq $.Sort "site") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}">Site</a>
+              <a href="/?tab=analytics&sort=site&order={{if and (eq $.Sort "site") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}&limit={{.Limit}}">Site</a>
             </th>
             <th>Link</th>
           </tr>
@@ -84,6 +100,25 @@
           {{end}}
         </tbody>
       </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination">
+      {{if gt .TotalPages 1}}
+        <a href="/?tab=analytics&page=1&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" class="btn {{if eq .CurrentPage 1}}disabled{{end}}">First</a>
+        {{if .HasPrev}}
+          <a href="/?tab=analytics&page={{.CurrentPage | add -1}}&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" class="btn">Previous</a>
+        {{else}}
+          <span class="btn disabled">Previous</span>
+        {{end}}
+        <span class="page-info">Page {{.CurrentPage}} of {{.TotalPages}}</span>
+        {{if .HasNext}}
+          <a href="/?tab=analytics&page={{.CurrentPage | add 1}}&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" class="btn">Next</a>
+        {{else}}
+          <span class="btn disabled">Next</span>
+        {{end}}
+        <a href="/?tab=analytics&page={{.TotalPages}}&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" class="btn {{if eq .CurrentPage .TotalPages}}disabled{{end}}">Last</a>
+      {{end}}
     </div>
   </div>
 

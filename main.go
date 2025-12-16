@@ -41,6 +41,11 @@ type DashboardData struct {
 	Sort         string
 	Order        string
 	ActiveTab    string
+	CurrentPage  int
+	TotalPages   int
+	Limit        int
+	HasNext      bool
+	HasPrev      bool
 }
 
 // SessionManager keeps an in-memory mapping of session IDs to user IDs.
@@ -92,7 +97,13 @@ func main() {
 		log.Fatalf("failed to ensure default admin: %v", err)
 	}
 
-	tmpl := template.Must(template.ParseGlob("templates/*.html"))
+	funcMap := template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
+	}
+
+	tmpl := template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
 
 	app := &App{
 		db:        db,
@@ -270,8 +281,50 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		orderDir = "desc"
 	}
 
+	// Pagination parameters
+	page := 1
+	if v := r.URL.Query().Get("page"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	limit := 10
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if l, err := strconv.Atoi(v); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
 	orderClause := fmt.Sprintf("%s %s", mapSortColumn(sortField), orderDir)
 
+	// Build base query for counting
+	countQuery := a.db.Model(&Post{})
+	if sortField == "author" {
+		countQuery = countQuery.Joins("Author")
+	} else if sortField == "site" {
+		countQuery = countQuery.Joins("Site")
+	}
+	if siteFilter != 0 {
+		countQuery = countQuery.Where("posts.site_id = ?", siteFilter)
+	}
+
+	// Count total matching posts
+	var total int64
+	countQuery.Count(&total)
+
+	// Calculate pagination
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	offset := (page - 1) * limit
+
+	// Build query for fetching posts
 	query := a.db.Model(&Post{}).Preload("Author").Preload("Site")
 	if sortField == "author" {
 		query = query.Joins("Author")
@@ -279,11 +332,11 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		query = query.Joins("Site")
 	}
 	if siteFilter != 0 {
-		query = query.Where("site_id = ?", siteFilter)
+		query = query.Where("posts.site_id = ?", siteFilter)
 	}
 
 	var posts []Post
-	query.Order(orderClause).Limit(50).Find(&posts)
+	query.Order(orderClause).Limit(limit).Offset(offset).Find(&posts)
 
 	data := DashboardData{
 		User:         user,
@@ -295,6 +348,11 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		Sort:         sortField,
 		Order:        orderDir,
 		ActiveTab:    activeTab,
+		CurrentPage:  page,
+		TotalPages:   totalPages,
+		Limit:        limit,
+		HasNext:      page < totalPages,
+		HasPrev:      page > 1,
 	}
 
 	a.renderTemplate(w, "home.html", data)
