@@ -32,10 +32,17 @@ func CollectData(db *gorm.DB, site *Site) error {
 	}
 
 	for _, p := range wpPosts {
+		// Try to parse the WordPress date string
+		// WordPress typically uses RFC3339, but try the simpler format as fallback
+		layout := "2006-01-02T15:04:05"
 		publishedAt, err := time.Parse(time.RFC3339, p.Date)
 		if err != nil {
-			log.Printf("unable to parse post date %q: %v", p.Date, err)
-			publishedAt = time.Now()
+			// Fallback to simpler format without timezone
+			publishedAt, err = time.Parse(layout, p.Date)
+			if err != nil {
+				log.Printf("unable to parse post date %q: %v", p.Date, err)
+				publishedAt = time.Now()
+			}
 		}
 
 		authorName := "Unknown"
