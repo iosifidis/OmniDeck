@@ -125,6 +125,7 @@ func main() {
 	mux.HandleFunc("/site/delete", app.handleDeleteSite)
 	mux.HandleFunc("/profile", app.handleProfile)
 	mux.HandleFunc("/reset-data", app.handleResetData)
+	mux.HandleFunc("/sync-all", app.handleSyncAll)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	server := &http.Server{
@@ -526,6 +527,31 @@ func (a *App) handleResetData(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Database cleared: all posts and authors deleted")
 	http.Redirect(w, r, "/profile", http.StatusSeeOther)
+}
+
+func (a *App) handleSyncAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Fetch all sites from database
+	var sites []Site
+	if err := a.db.Find(&sites).Error; err != nil {
+		log.Printf("Error fetching sites: %v", err)
+		http.Error(w, "Failed to fetch sites", http.StatusInternalServerError)
+		return
+	}
+
+	// Trigger data collection for each site in background
+	for i := range sites {
+		site := &sites[i]
+		go CollectData(a.db, site)
+		log.Printf("Triggered sync for site: %s", site.Name)
+	}
+
+	log.Printf("Manual sync triggered for %d sites", len(sites))
+	http.Redirect(w, r, "/?tab=monitoring", http.StatusSeeOther)
 }
 
 func (a *App) renderTemplate(w http.ResponseWriter, name string, data any) {
