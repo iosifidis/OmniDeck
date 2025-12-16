@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/csv"
-	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -31,24 +30,28 @@ type App struct {
 	sessions  *SessionManager
 }
 
+// Struct matches HTML exactly now
 type DashboardData struct {
-	User         *User
-	TotalSites   int64
-	TotalPosts   int64
-	Sites        []Site
-	Posts        []Post
-	FilterSiteID uint
-	Sort         string
-	Order        string
-	ActiveTab    string
-	CurrentPage  int
-	TotalPages   int
-	Limit        int
-	HasNext      bool
-	HasPrev      bool
+	User             *User
+	Sites            []Site
+	Posts            []Post // CHANGED TO 'Posts' for simplicity
+	TotalSites       int64
+	TotalPostsDB     int64
+	FilteredCount    int64
+	SelectedSiteID   uint
+	SelectedSiteName string
+	StartDate        string
+	EndDate          string
+	Limit            int
+	CurrentPage      int
+	TotalPages       int
+	HasPrev          bool
+	HasNext          bool
+	PrevPage         int
+	NextPage         int
+	ActiveTab        string
 }
 
-// SessionManager keeps an in-memory mapping of session IDs to user IDs.
 type SessionManager struct {
 	mu    sync.RWMutex
 	store map[string]uint
@@ -98,9 +101,7 @@ func main() {
 	}
 
 	funcMap := template.FuncMap{
-		"add": func(a, b int) int {
-			return a + b
-		},
+		"add": func(a, b int) int { return a + b },
 	}
 
 	tmpl := template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
@@ -134,7 +135,6 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server failed: %v", err)
 	}
-
 	close(stopMonitor)
 }
 
@@ -144,12 +144,10 @@ func ensureDefaultAdmin(db *gorm.DB) error {
 	if count > 0 {
 		return nil
 	}
-
 	hash, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-
 	user := User{Username: "admin", Password: string(hash), DarkMode: false}
 	return db.Create(&user).Error
 }
@@ -160,13 +158,11 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-
 		user := a.currentUser(r)
 		if user == nil {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
-
 		ctx := context.WithValue(r.Context(), userContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -177,12 +173,10 @@ func (a *App) currentUser(r *http.Request) *User {
 	if err != nil {
 		return nil
 	}
-
 	userID, ok := a.sessions.Get(cookie.Value)
 	if !ok {
 		return nil
 	}
-
 	var user User
 	if err := a.db.First(&user, userID).Error; err != nil {
 		return nil
@@ -195,33 +189,27 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		a.renderTemplate(w, "login.html", nil)
 		return
 	}
-
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
-
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
-
 	var user User
 	if err := a.db.Where("username = ?", username).First(&user).Error; err != nil {
 		a.renderTemplate(w, "login.html", map[string]string{"Error": "Invalid credentials"})
 		return
 	}
-
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		a.renderTemplate(w, "login.html", map[string]string{"Error": "Invalid credentials"})
 		return
 	}
-
 	sessionID, err := a.sessions.Create(user.ID)
 	if err != nil {
 		log.Printf("failed to create session: %v", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    sessionID,
@@ -229,7 +217,6 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Expires:  time.Now().Add(24 * time.Hour),
 	})
-
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
@@ -238,57 +225,44 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		a.sessions.Delete(cookie.Value)
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:    sessionCookieName,
-		Value:   "",
-		Path:    "/",
-		Expires: time.Unix(0, 0),
-	})
-
+	http.SetCookie(w, &http.Cookie{Name: sessionCookieName, Value: "", Path: "/", Expires: time.Unix(0, 0)})
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
 func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(userContextKey).(*User)
-
 	activeTab := r.URL.Query().Get("tab")
 	if activeTab == "" {
 		activeTab = "analytics"
 	}
 
-	var totalSites, totalPosts int64
+	var totalSites, totalPostsDB int64
 	a.db.Model(&Site{}).Count(&totalSites)
-	a.db.Model(&Post{}).Count(&totalPosts)
+	a.db.Model(&Post{}).Count(&totalPostsDB)
 
 	var sites []Site
 	a.db.Order("name asc").Find(&sites)
 
 	siteFilter := uint(0)
+	selectedSiteName := "All Sites"
 	if v := r.URL.Query().Get("site"); v != "" {
 		if id, err := strconv.Atoi(v); err == nil {
 			siteFilter = uint(id)
+			for _, site := range sites {
+				if site.ID == siteFilter {
+					selectedSiteName = site.Name
+					break
+				}
+			}
 		}
 	}
 
-	sortField := r.URL.Query().Get("sort")
-	if sortField == "" {
-		sortField = "date"
-	}
-
-	orderDir := strings.ToLower(r.URL.Query().Get("order"))
-	if orderDir != "asc" {
-		orderDir = "desc"
-	}
-
-	// Pagination parameters
 	page := 1
 	if v := r.URL.Query().Get("page"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil && p > 0 {
 			page = p
 		}
 	}
-
 	limit := 10
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if l, err := strconv.Atoi(v); err == nil && l > 0 && l <= 100 {
@@ -296,77 +270,77 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	orderClause := fmt.Sprintf("%s %s", mapSortColumn(sortField), orderDir)
+	startDateStr := r.URL.Query().Get("start_date")
+	endDateStr := r.URL.Query().Get("end_date")
+	now := time.Now()
+	endDate := startOfDay(now).Add(24*time.Hour - time.Nanosecond)
+	startDate := startOfDay(now.AddDate(0, -1, 0))
 
-	// Build base query for counting
+	if endDateStr != "" {
+		if parsed, err := time.Parse("2006-01-02", endDateStr); err == nil {
+			endDate = startOfDay(parsed).Add(24*time.Hour - time.Nanosecond)
+		}
+	}
+	if startDateStr != "" {
+		if parsed, err := time.Parse("2006-01-02", startDateStr); err == nil {
+			startDate = startOfDay(parsed)
+		}
+	}
+	if startDateStr == "" {
+		startDateStr = startDate.Format("2006-01-02")
+	}
+	if endDateStr == "" {
+		endDateStr = endDate.Format("2006-01-02")
+	}
+
 	countQuery := a.db.Model(&Post{})
-	if sortField == "author" {
-		countQuery = countQuery.Joins("Author")
-	} else if sortField == "site" {
-		countQuery = countQuery.Joins("Site")
-	}
 	if siteFilter != 0 {
-		countQuery = countQuery.Where("posts.site_id = ?", siteFilter)
+		countQuery = countQuery.Where("site_id = ?", siteFilter)
 	}
+	countQuery = countQuery.Where("date >= ? AND date <= ?", startDate, endDate)
+	var filteredTotal int64
+	countQuery.Count(&filteredTotal)
 
-	// Count total matching posts
-	var total int64
-	countQuery.Count(&total)
-
-	// Calculate pagination
-	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	totalPages := int((filteredTotal + int64(limit) - 1) / int64(limit))
 	if totalPages == 0 {
 		totalPages = 1
 	}
 	if page > totalPages {
 		page = totalPages
 	}
-
 	offset := (page - 1) * limit
 
-	// Build query for fetching posts
 	query := a.db.Model(&Post{}).Preload("Author").Preload("Site")
-	if sortField == "author" {
-		query = query.Joins("Author")
-	} else if sortField == "site" {
-		query = query.Joins("Site")
-	}
 	if siteFilter != 0 {
 		query = query.Where("posts.site_id = ?", siteFilter)
 	}
+	query = query.Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
 
 	var posts []Post
-	query.Order(orderClause).Limit(limit).Offset(offset).Find(&posts)
+	query.Order("date desc").Limit(limit).Offset(offset).Find(&posts)
 
 	data := DashboardData{
-		User:         user,
-		TotalSites:   totalSites,
-		TotalPosts:   totalPosts,
-		Sites:        sites,
-		Posts:        posts,
-		FilterSiteID: siteFilter,
-		Sort:         sortField,
-		Order:        orderDir,
-		ActiveTab:    activeTab,
-		CurrentPage:  page,
-		TotalPages:   totalPages,
-		Limit:        limit,
-		HasNext:      page < totalPages,
-		HasPrev:      page > 1,
+		User:             user,
+		TotalSites:       totalSites,
+		TotalPostsDB:     totalPostsDB,
+		FilteredCount:    filteredTotal,
+		SelectedSiteName: selectedSiteName,
+		Sites:            sites,
+		Posts:            posts, // Correctly assigned
+		SelectedSiteID:   siteFilter,
+		ActiveTab:        activeTab,
+		CurrentPage:      page,
+		TotalPages:       totalPages,
+		Limit:            limit,
+		HasNext:          page < totalPages,
+		HasPrev:          page > 1,
+		NextPage:         page + 1,
+		PrevPage:         page - 1,
+		StartDate:        startDateStr,
+		EndDate:          endDateStr,
 	}
 
 	a.renderTemplate(w, "home.html", data)
-}
-
-func mapSortColumn(sortField string) string {
-	switch sortField {
-	case "author":
-		return "authors.name"
-	case "site":
-		return "sites.name"
-	default:
-		return "posts.date"
-	}
 }
 
 func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
@@ -376,29 +350,36 @@ func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
 			siteFilter = uint(id)
 		}
 	}
-
-	query := a.db.Model(&Post{}).Preload("Author").Preload("Site").Joins("Author").Joins("Site")
+	query := a.db.Model(&Post{}).Preload("Author").Preload("Site")
 	if siteFilter != 0 {
 		query = query.Where("site_id = ?", siteFilter)
 	}
-
+	startDateStr := r.URL.Query().Get("start_date")
+	endDateStr := r.URL.Query().Get("end_date")
+	if startDateStr != "" && endDateStr != "" {
+		query = query.Where("date >= ? AND date <= ?", startDateStr+" 00:00:00", endDateStr+" 23:59:59")
+	}
 	var posts []Post
-	query.Order("posts.date desc").Find(&posts)
-
+	query.Order("date desc").Find(&posts)
 	w.Header().Set("Content-Disposition", "attachment; filename=omnideck_posts.csv")
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Write([]byte{0xEF, 0xBB, 0xBF})
-
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
-
-	writer.Write([]string{"Title", "Author", "Site", "Date", "Link"})
+	writer.Write([]string{"Date", "Title", "Author", "Site", "Link"})
 	for _, p := range posts {
+		authorName := "Unknown"
+		if p.AuthorID != 0 {
+			var auth Author
+			if a.db.First(&auth, p.AuthorID).Error == nil {
+				authorName = auth.Name
+			}
+		}
 		writer.Write([]string{
+			p.Date.Format("2006-01-02"),
 			p.Title,
-			p.Author.Name,
+			authorName,
 			p.Site.Name,
-			p.Date.Format(time.RFC3339),
 			p.Link,
 		})
 	}
@@ -406,56 +387,48 @@ func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(userContextKey).(*User)
-
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
-
 		name := strings.TrimSpace(r.FormValue("name"))
 		url := strings.TrimSpace(r.FormValue("url"))
 		if name == "" || url == "" {
 			http.Redirect(w, r, "/settings", http.StatusSeeOther)
 			return
 		}
-
-		site := Site{Name: name, URL: url, Status: "DOWN"}
+		site := Site{Name: name, URL: url, Status: "DOWN", LastChecked: time.Now()}
 		a.db.Create(&site)
-
-		go CheckSite(a.db, &site)
-		go CollectData(a.db, &site)
-
+		go func() {
+			CheckSite(a.db, &site)
+			CollectData(a.db, &site)
+		}()
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
-
 	var sites []Site
 	a.db.Order("name asc").Find(&sites)
 	data := struct {
 		User  *User
 		Sites []Site
 	}{User: user, Sites: sites}
-
 	a.renderTemplate(w, "settings.html", data)
 }
 
 func (a *App) handleEditSite(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(userContextKey).(*User)
-
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
-
 	var site Site
 	if err := a.db.First(&site, id).Error; err != nil {
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
-
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
@@ -464,16 +437,13 @@ func (a *App) handleEditSite(w http.ResponseWriter, r *http.Request) {
 		site.Name = strings.TrimSpace(r.FormValue("name"))
 		site.URL = strings.TrimSpace(r.FormValue("url"))
 		a.db.Save(&site)
-
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
-
 	data := struct {
 		User *User
 		Site Site
 	}{User: user, Site: site}
-
 	a.renderTemplate(w, "site_edit.html", data)
 }
 
@@ -482,31 +452,28 @@ func (a *App) handleDeleteSite(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
-
 	idStr := r.URL.Query().Get("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
 		return
 	}
-
+	a.db.Where("site_id = ?", id).Delete(&Post{})
+	a.db.Where("site_id = ?", id).Delete(&Author{})
 	a.db.Delete(&Site{}, id)
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
 func (a *App) handleProfile(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(userContextKey).(*User)
-
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
-
 		username := strings.TrimSpace(r.FormValue("username"))
 		password := r.FormValue("password")
 		darkMode := r.FormValue("dark_mode") == "on"
-
 		if username != "" {
 			user.Username = username
 		}
@@ -519,16 +486,13 @@ func (a *App) handleProfile(w http.ResponseWriter, r *http.Request) {
 			user.Password = string(hash)
 		}
 		user.DarkMode = darkMode
-
 		if err := a.db.Save(user).Error; err != nil {
 			http.Error(w, "failed to update profile", http.StatusInternalServerError)
 			return
 		}
-
 		http.Redirect(w, r, "/profile", http.StatusSeeOther)
 		return
 	}
-
 	data := struct {
 		User *User
 	}{User: user}
@@ -540,4 +504,8 @@ func (a *App) renderTemplate(w http.ResponseWriter, name string, data any) {
 		log.Printf("template render error: %v", err)
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
+}
+
+func startOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }

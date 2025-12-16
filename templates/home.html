@@ -1,159 +1,261 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="/static/css/style.css">
-  <title>OmniDeck Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniDeck Dashboard</title>
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom Overrides (for dark mode) -->
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body class="{{if .User}}{{if .User.DarkMode}}dark-mode{{end}}{{end}}">
-<header>
-  <div class="brand">
-    <div class="logo">OD</div>
-    <span>OmniDeck</span>
-  </div>
-  <div class="header-actions">
-    <span>Hello {{.User.Username}}</span>
-    <a class="btn btn-warning" href="/profile">Profile</a>
-    <a class="btn btn-danger" href="/logout">Logout</a>
-  </div>
+<body data-bs-theme="{{if .User.DarkMode}}dark{{else}}light{{end}}">
+
+<header class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white shadow-sm">
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-primary">OD</span>
+        <span class="h5 m-0 fw-bold">OmniDeck</span>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+        <span class="text-muted">Hello, <strong>{{.User.Username}}</strong></span>
+        <a href="/profile" class="btn btn-primary btn-sm d-flex align-items-center justify-content-center">Profile</a>
+        <a href="/logout" class="btn btn-danger btn-sm d-flex align-items-center justify-content-center">Logout</a>
+    </div>
 </header>
-<main>
-  <div class="tabs">
-    <button class="tab-button" data-target="analytics">Analytics</button>
-    <button class="tab-button" data-target="status">System Status</button>
-  </div>
 
-  <div id="analytics" class="tab-content">
-    <div class="cards">
-      <div class="card">
-        <h3>Total Sites</h3>
-        <div class="value">{{.TotalSites}}</div>
-      </div>
-      <div class="card">
-        <h3>Total Posts</h3>
-        <div class="value">{{.TotalPosts}}</div>
-      </div>
-    </div>
+<div class="container-fluid mt-4">
 
-    <div class="button-row">
-      <form class="filters" method="GET" action="/">
-        <input type="hidden" name="tab" value="analytics">
-        <input type="hidden" name="sort" value="{{.Sort}}">
-        <input type="hidden" name="order" value="{{.Order}}">
-        <input type="hidden" name="limit" value="{{.Limit}}">
-        <label for="site">Filter by Site</label>
-        <select name="site" id="site" onchange="this.form.submit()">
-          <option value="">All Sites</option>
-          {{range .Sites}}
-            <option value="{{.ID}}" {{if eq $.FilterSiteID .ID}}selected{{end}}>{{.Name}}</option>
-          {{end}}
-        </select>
-      </form>
-      <form class="filters" method="GET" action="/" style="margin-left: 10px;">
-        <input type="hidden" name="tab" value="analytics">
-        <input type="hidden" name="sort" value="{{.Sort}}">
-        <input type="hidden" name="order" value="{{.Order}}">
-        {{if .FilterSiteID}}<input type="hidden" name="site" value="{{.FilterSiteID}}">{{end}}
-        <label for="limit">Items per page</label>
-        <select name="limit" id="limit" onchange="this.form.submit()">
-          <option value="10" {{if eq .Limit 10}}selected{{end}}>10</option>
-          <option value="20" {{if eq .Limit 20}}selected{{end}}>20</option>
-          <option value="30" {{if eq .Limit 30}}selected{{end}}>30</option>
-          <option value="50" {{if eq .Limit 50}}selected{{end}}>50</option>
-        </select>
-      </form>
-      <div>
-        <a class="btn btn-success" href="/export{{if .FilterSiteID}}?site={{.FilterSiteID}}{{end}}">Export CSV</a>
-        <a class="btn btn-primary" href="/settings">Manage Sites</a>
-      </div>
-    </div>
-
-    <div class="table-responsive">
-      <table>
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>
-              <a href="/?tab=analytics&sort=date&order={{if and (eq $.Sort "date") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}&limit={{.Limit}}">Date</a>
-            </th>
-            <th>
-              <a href="/?tab=analytics&sort=author&order={{if and (eq $.Sort "author") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}&limit={{.Limit}}">Author</a>
-            </th>
-            <th>
-              <a href="/?tab=analytics&sort=site&order={{if and (eq $.Sort "site") (eq $.Order "asc")}}desc{{else}}asc{{end}}{{if $.FilterSiteID}}&site={{$.FilterSiteID}}{{end}}&limit={{.Limit}}">Site</a>
-            </th>
-            <th>Link</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Posts}}
-          <tr>
-            <td>{{.Title}}</td>
-            <td>{{.Date.Format "2006-01-02 15:04"}}</td>
-            <td>{{.Author.Name}}</td>
-            <td>{{.Site.Name}}</td>
-            <td><a href="{{.Link}}" target="_blank" rel="noreferrer">Open</a></td>
-          </tr>
-          {{else}}
-          <tr><td colspan="5">No posts yet.</td></tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Pagination Controls -->
-    <div class="pagination">
-      {{if gt .TotalPages 1}}
-        <a href="/?tab=analytics&page=1&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" style="margin: 0 5px;" class="btn btn-primary {{if eq .CurrentPage 1}}disabled{{end}}">First</a>
-        {{if .HasPrev}}
-          <a href="/?tab=analytics&page={{.CurrentPage | add -1}}&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" style="margin: 0 5px;" class="btn btn-primary">Previous</a>
-        {{else}}
-          <span style="margin: 0 5px;" class="btn btn-primary disabled">Previous</span>
-        {{end}}
-        <span class="page-info">Page {{.CurrentPage}} of {{.TotalPages}}</span>
-        {{if .HasNext}}
-          <a href="/?tab=analytics&page={{.CurrentPage | add 1}}&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" style="margin: 0 5px;" class="btn btn-primary">Next</a>
-        {{else}}
-          <span style="margin: 0 5px;" class="btn btn-primary disabled">Next</span>
-        {{end}}
-        <a href="/?tab=analytics&page={{.TotalPages}}&sort={{.Sort}}&order={{.Order}}&limit={{.Limit}}{{if .FilterSiteID}}&site={{.FilterSiteID}}{{end}}" style="margin: 0 5px;" class="btn btn-primary {{if eq .CurrentPage .TotalPages}}disabled{{end}}">Last</a>
-      {{end}}
-    </div>
-  </div>
-
-  <div id="status" class="tab-content">
-    <div class="site-list">
-      {{range .Sites}}
-      <div class="site-item">
-        <div class="flex-between">
-          <div>
-            <strong>{{.Name}}</strong>
-            <div><small>{{.URL}}</small></div>
-          </div>
-          <span class="status-pill {{if eq .Status "UP"}}status-up{{else}}status-down{{end}}">{{.Status}}</span>
+    <!-- ROW 1: HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <!-- Left: Tabs (Buttons with Gap) -->
+        <div class="d-flex gap-2">
+            <button id="btn-analytics" class="btn btn-primary d-flex align-items-center justify-content-center" onclick="switchTab('analytics')" style="height: 38px; min-width: 100px;">
+                Analytics
+            </button>
+            <button id="btn-monitoring" class="btn btn-outline-primary d-flex align-items-center justify-content-center" onclick="switchTab('monitoring')" style="height: 38px; min-width: 120px;">
+                System Status
+            </button>
         </div>
-        <div><small>Last Checked: {{if .LastChecked.IsZero}}Never{{else}}{{.LastChecked.Format "2006-01-02 15:04"}}{{end}}</small></div>
-      </div>
-      {{else}}
-      <p>No sites configured.</p>
-      {{end}}
+        
+        <!-- Right: Actions (Buttons with Gap) -->
+        <div class="d-flex gap-2">
+            <a href="/export?site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-success d-flex align-items-center justify-content-center" style="height: 38px;">
+                Export CSV
+            </a>
+            <a href="/settings" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px;">
+                Manage Sites
+            </a>
+        </div>
     </div>
-  </div>
-</main>
+
+    <!-- ANALYTICS TAB -->
+    <div id="tab-analytics" class="tab-content active">
+        <!-- ROW 2: STATS GRID -->
+        <div class="row mb-4">
+            <!-- Card 1 -->
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                        <h5 class="card-title text-muted">Total Sites</h5>
+                        <p class="card-text fs-2 fw-bold">{{.TotalSites}}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Card 2 -->
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                        <h5 class="card-title text-muted">Total Posts in DB</h5>
+                        <p class="card-text fs-2 fw-bold">{{.TotalPostsDB}}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Card 3 -->
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                        <!-- Header Row: Label + Dropdown -->
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <h5 class="card-title text-muted m-0 text-nowrap">Filtered:</h5>
+                            <form action="/" method="GET" class="m-0">
+                                <input type="hidden" name="start_date" value="{{.StartDate}}">
+                                <input type="hidden" name="end_date" value="{{.EndDate}}">
+                                <input type="hidden" name="limit" value="{{.Limit}}">
+                                <select name="site_id" onchange="this.form.submit()" class="form-select form-select-sm py-0" style="width: auto; height: 30px; font-size: 14px;">
+                                    <option value="0" {{if eq .SelectedSiteID 0}}selected{{end}}>All Sites</option>
+                                    {{range .Sites}}
+                                    <option value="{{.ID}}" {{if eq $.SelectedSiteID .ID}}selected{{end}}>{{.Name}}</option>
+                                    {{end}}
+                                </select>
+                            </form>
+                        </div>
+                        <!-- Number -->
+                        <p class="card-text fs-2 fw-bold">{{.FilteredCount}}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROW 3: TOOLBAR -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center bg-white p-3 rounded border mb-4 shadow-sm">
+            
+            <!-- LEFT: Date Filters -->
+            <form action="/" method="GET" class="d-flex align-items-center gap-2">
+                <input type="hidden" name="site_id" value="{{.SelectedSiteID}}">
+                <input type="hidden" name="limit" value="{{.Limit}}">
+                
+                <div class="d-flex align-items-center gap-1">
+                    <span class="text-muted small fw-bold">From:</span>
+                    <input type="date" name="start_date" value="{{.StartDate}}" class="form-control" style="height: 38px; max-width: 140px;">
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <span class="text-muted small fw-bold">To:</span>
+                    <input type="date" name="end_date" value="{{.EndDate}}" class="form-control" style="height: 38px; max-width: 140px;">
+                </div>
+                <button type="submit" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px; padding: 0 20px;">Filter</button>
+            </form>
+
+            <!-- CENTER: Items Per Page -->
+            <form action="/" method="GET" class="d-flex align-items-center gap-2">
+                <input type="hidden" name="site_id" value="{{.SelectedSiteID}}">
+                <input type="hidden" name="start_date" value="{{.StartDate}}">
+                <input type="hidden" name="end_date" value="{{.EndDate}}">
+                <span class="text-muted fw-bold">Show:</span>
+                <select name="limit" onchange="this.form.submit()" class="form-select" style="height: 38px; width: auto; cursor: pointer;">
+                    <option value="10" {{if eq .Limit 10}}selected{{end}}>10 rows</option>
+                    <option value="20" {{if eq .Limit 20}}selected{{end}}>20 rows</option>
+                    <option value="50" {{if eq .Limit 50}}selected{{end}}>50 rows</option>
+                </select>
+            </form>
+
+            <!-- RIGHT: Pagination -->
+            <div class="d-flex align-items-center gap-1">
+                <!-- First/Prev -->
+                {{if .HasPrev}}
+                <a href="/?page=1&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">First</a>
+                <a href="/?page={{.PrevPage}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Prev</a>
+                {{else}}
+                <button class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>First</button>
+                <button class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>Prev</button>
+                {{end}}
+                
+                <!-- Page Info -->
+                <span class="mx-2 fw-bold text-dark d-flex align-items-center justify-content-center" style="height: 38px; white-space: nowrap;">
+                    Page {{.CurrentPage}} of {{.TotalPages}}
+                </span>
+                
+                <!-- Next/Last -->
+                {{if .HasNext}}
+                <a href="/?page={{.NextPage}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Next</a>
+                <a href="/?page={{.TotalPages}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Last</a>
+                {{else}}
+                <button class="btn btn-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>Next</button>
+                <button class="btn btn-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>Last</button>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- ROW 4: DATA TABLE -->
+        <div class="card shadow-sm border rounded-3 overflow-hidden mb-5">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light border-bottom">
+                        <tr>
+                            <th class="py-3 ps-4 text-uppercase text-secondary small fw-bold" style="width: 40%;">Title</th>
+                            <th class="py-3 text-uppercase text-secondary small fw-bold">Date</th>
+                            <th class="py-3 text-uppercase text-secondary small fw-bold">Author</th>
+                            <th class="py-3 text-uppercase text-secondary small fw-bold">Site</th>
+                            <th class="py-3 pe-4 text-end text-uppercase text-secondary small fw-bold">Link</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .Posts}}
+                        <tr>
+                            <td class="py-3 ps-4">
+                                <div class="fw-medium text-dark">{{.Title}}</div>
+                            </td>
+                            <td class="py-3 text-muted small" style="white-space: nowrap;">
+                                {{.Date.Format "2006-01-02 15:04"}}
+                            </td>
+                            <td class="py-3">
+                                <span class="badge bg-light text-dark border fw-normal">
+                                    {{if .Author.Name}}{{.Author.Name}}{{else}}Unknown{{end}}
+                                </span>
+                            </td>
+                            <td class="py-3">
+                                <span class="small text-muted">{{.Site.Name}}</span>
+                            </td>
+                            <td class="py-3 pe-4 text-end">
+                                <a href="{{.Link}}" target="_blank" 
+                                   class="btn btn-primary btn-sm rounded-pill d-flex align-items-center justify-content-center ms-auto" 
+                                   style="width: 70px; height: 30px; font-size: 12px; font-weight: 600; padding: 0;">
+                                   Open
+                                </a>
+                            </td>
+                        </tr>
+                        {{else}}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <p class="m-0 fs-5">📭</p>
+                                <p class="m-0">No posts found for these filters.</p>
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MONITORING TAB -->
+    <div id="tab-monitoring" class="tab-content" style="display: none;">
+        <div class="row">
+            {{range .Sites}}
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{{.Name}}</h5>
+                            <small class="text-muted">{{.URL}}</small>
+                        </div>
+                        <span class="badge {{if eq .Status "UP"}}bg-success{{else}}bg-danger{{end}}">{{.Status}}</span>
+                    </div>
+                </div>
+            </div>
+            {{else}}
+            <p>No sites to monitor.</p>
+            {{end}}
+        </div>
+    </div>
+</div>
 
 <script>
-(function() {
-  const active = "{{.ActiveTab}}" || "analytics";
-  const buttons = document.querySelectorAll('.tab-button');
-  const tabs = document.querySelectorAll('.tab-content');
-  function activate(name) {
-    tabs.forEach(t => t.classList.toggle('active', t.id === name));
-    buttons.forEach(b => b.classList.toggle('active', b.dataset.target === name));
-  }
-  buttons.forEach(btn => btn.addEventListener('click', () => activate(btn.dataset.target)));
-  activate(active);
-})();
+    function switchTab(tabName) {
+        // Hide all contents
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        
+        // Show selected
+        document.getElementById('tab-' + tabName).classList.add('active');
+        
+        // Update Buttons
+        const btnAnalytics = document.getElementById('btn-analytics');
+        const btnMonitoring = document.getElementById('btn-monitoring');
+        
+        if(tabName === 'analytics') {
+            btnAnalytics.classList.replace('btn-outline-primary', 'btn-primary');
+            btnMonitoring.classList.replace('btn-primary', 'btn-outline-primary');
+        } else {
+            btnAnalytics.classList.replace('btn-primary', 'btn-outline-primary');
+            btnMonitoring.classList.replace('btn-outline-primary', 'btn-primary');
+        }
+    }
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        switchTab('analytics');
+    });
 </script>
 </body>
 </html>
