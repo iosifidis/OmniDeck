@@ -33,23 +33,27 @@ type App struct {
 // Struct matches HTML exactly now
 type DashboardData struct {
 	User             *User
-	Sites            []Site
-	Posts            []Post // CHANGED TO 'Posts' for simplicity
 	TotalSites       int64
 	TotalPostsDB     int64
 	FilteredCount    int64
-	SelectedSiteID   uint
 	SelectedSiteName string
-	StartDate        string
-	EndDate          string
-	Limit            int
+	Sites            []Site
+	Authors          []Author
+	Posts            []Post
+	SelectedSiteID   uint
+	SelectedAuthorID uint
+	SitePostCount    int64
+	AuthorPostCount  int64
+	ActiveTab        string
 	CurrentPage      int
 	TotalPages       int
-	HasPrev          bool
+	Limit            int
 	HasNext          bool
-	PrevPage         int
+	HasPrev          bool
 	NextPage         int
-	ActiveTab        string
+	PrevPage         int
+	StartDate        string
+	EndDate          string
 }
 
 type SessionManager struct {
@@ -245,6 +249,7 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	var sites []Site
 	a.db.Order("name asc").Find(&sites)
 
+	// Parse site filter
 	siteFilter := uint(0)
 	selectedSiteName := "All Sites"
 	if v := r.URL.Query().Get("site_id"); v != "" {
@@ -259,6 +264,15 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Parse author filter
+	authorFilter := uint(0)
+	if v := r.URL.Query().Get("author_id"); v != "" {
+		if id, err := strconv.Atoi(v); err == nil && id > 0 {
+			authorFilter = uint(id)
+		}
+	}
+
+	// Pagination
 	page := 1
 	if v := r.URL.Query().Get("page"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil && p > 0 {
@@ -272,6 +286,7 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Date range parsing (defaults: last month to today)
 	startDateStr := r.URL.Query().Get("start_date")
 	endDateStr := r.URL.Query().Get("end_date")
 	now := time.Now()
@@ -295,39 +310,65 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		endDateStr = endDate.Format("2006-01-02")
 	}
 
-	countQuery := a.db.Model(&Post{})
+	// Fetch Authors for Dropdown (Only those with posts on the selected site)
+	var authors []Author
+	authorQuery := a.db.Table("authors").
+		Joins("JOIN posts ON posts.author_id = authors.id").
+		Select("authors.id, authors.name").
+		Group("authors.name").
+		Order("authors.name asc")
+
 	if siteFilter != 0 {
-		countQuery = countQuery.Where("site_id = ?", siteFilter)
+		authorQuery = authorQuery.Where("posts.site_id = ?", siteFilter)
 	}
-	countQuery = countQuery.Where("date >= ? AND date <= ?", startDate, endDate)
+
+	authorQuery.Find(&authors)
+
+	// Identify selected author name (for filtering by name instead of ID)
+	authorName := ""
+	if authorFilter != 0 {
+		var selectedAuthor Author
+		if err := a.db.First(&selectedAuthor, authorFilter).Error; err == nil {
+			authorName = selectedAuthor.Name
+		}
+	}
+
+	// Count posts for Card 2: Date + Site (ignore author)
+	siteCountQuery := a.db.Model(&Post{}).Where("date >= ? AND date <= ?", startDate, endDate)
+	if siteFilter != 0 {
+		siteCountQuery = siteCountQuery.Where("site_id = ?", siteFilter)
+	}
+	var sitePostCount int64
+	siteCountQuery.Count(&sitePostCount)
+
+	// Count posts for Card 3: Date + Site + Author Name
+	authorCountQuery := a.db.Model(&Post{}).
+		Joins("JOIN authors ON authors.id = posts.author_id").
+		Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
+	if siteFilter != 0 {
+		authorCountQuery = authorCountQuery.Where("posts.site_id = ?", siteFilter)
+	}
+	if authorName != "" {
+		authorCountQuery = authorCountQuery.Where("authors.name = ?", authorName)
+	}
+	var authorPostCount int64
+	authorCountQuery.Count(&authorPostCount)
+	if authorName == "" {
+		authorPostCount = sitePostCount // show site-level count when no author selected
+	}
+
+	// Table/query count with filters (date + site + author name)
+	countQuery := a.db.Model(&Post{}).
+		Joins("JOIN authors ON authors.id = posts.author_id").
+		Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
+	if siteFilter != 0 {
+		countQuery = countQuery.Where("posts.site_id = ?", siteFilter)
+	}
+	if authorName != "" {
+		countQuery = countQuery.Where("authors.name = ?", authorName)
+	}
 	var filteredTotal int64
 	countQuery.Count(&filteredTotal)
-
-	// Historical data fetching: if no results and date range is set, fetch from API
-	if filteredTotal == 0 && (startDateStr != "" || endDateStr != "") {
-		var sitesToFetch []Site
-		if siteFilter != 0 {
-			a.db.First(&sitesToFetch, siteFilter)
-			sitesToFetch = []Site{sitesToFetch[0]}
-		} else {
-			a.db.Find(&sitesToFetch)
-		}
-
-		for _, s := range sitesToFetch {
-			siteCopy := s
-			if err := FetchArchive(a.db, &siteCopy, startDate, endDate); err != nil {
-				log.Printf("FetchArchive failed for site %d: %v", siteCopy.ID, err)
-			}
-		}
-
-		// Re-query after fetching
-		countQuery = a.db.Model(&Post{})
-		if siteFilter != 0 {
-			countQuery = countQuery.Where("site_id = ?", siteFilter)
-		}
-		countQuery = countQuery.Where("date >= ? AND date <= ?", startDate, endDate)
-		countQuery.Count(&filteredTotal)
-	}
 
 	totalPages := int((filteredTotal + int64(limit) - 1) / int64(limit))
 	if totalPages == 0 {
@@ -338,14 +379,21 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * limit
 
-	query := a.db.Model(&Post{}).Preload("Author").Preload("Site")
+	// Fetch posts for table with name-based author filtering
+	query := a.db.Model(&Post{}).
+		Preload("Author").
+		Preload("Site").
+		Joins("JOIN authors ON authors.id = posts.author_id").
+		Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
 	if siteFilter != 0 {
 		query = query.Where("posts.site_id = ?", siteFilter)
 	}
-	query = query.Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
+	if authorName != "" {
+		query = query.Where("authors.name = ?", authorName)
+	}
 
 	var posts []Post
-	query.Order("date desc").Limit(limit).Offset(offset).Find(&posts)
+	query.Order("posts.date desc").Limit(limit).Offset(offset).Find(&posts)
 
 	data := DashboardData{
 		User:             user,
@@ -354,8 +402,12 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		FilteredCount:    filteredTotal,
 		SelectedSiteName: selectedSiteName,
 		Sites:            sites,
-		Posts:            posts, // Correctly assigned
+		Authors:          authors,
+		Posts:            posts,
 		SelectedSiteID:   siteFilter,
+		SelectedAuthorID: authorFilter,
+		SitePostCount:    sitePostCount,
+		AuthorPostCount:  authorPostCount,
 		ActiveTab:        activeTab,
 		CurrentPage:      page,
 		TotalPages:       totalPages,
@@ -378,17 +430,37 @@ func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
 			siteFilter = uint(id)
 		}
 	}
+	authorFilter := uint(0)
+	if v := r.URL.Query().Get("author_id"); v != "" {
+		if id, err := strconv.Atoi(v); err == nil && id > 0 {
+			authorFilter = uint(id)
+		}
+	}
+
+	// Get author name if filtering by author
+	authorName := ""
+	if authorFilter != 0 {
+		var selectedAuthor Author
+		if err := a.db.First(&selectedAuthor, authorFilter).Error; err == nil {
+			authorName = selectedAuthor.Name
+		}
+	}
+
 	query := a.db.Model(&Post{}).Preload("Author").Preload("Site")
+	if authorName != "" {
+		query = query.Joins("JOIN authors ON authors.id = posts.author_id").
+			Where("authors.name = ?", authorName)
+	}
 	if siteFilter != 0 {
-		query = query.Where("site_id = ?", siteFilter)
+		query = query.Where("posts.site_id = ?", siteFilter)
 	}
 	startDateStr := r.URL.Query().Get("start_date")
 	endDateStr := r.URL.Query().Get("end_date")
 	if startDateStr != "" && endDateStr != "" {
-		query = query.Where("date >= ? AND date <= ?", startDateStr+" 00:00:00", endDateStr+" 23:59:59")
+		query = query.Where("posts.date >= ? AND posts.date <= ?", startDateStr+" 00:00:00", endDateStr+" 23:59:59")
 	}
 	var posts []Post
-	query.Order("date desc").Find(&posts)
+	query.Order("posts.date desc").Find(&posts)
 	w.Header().Set("Content-Disposition", "attachment; filename=omnideck_posts.csv")
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Write([]byte{0xEF, 0xBB, 0xBF})

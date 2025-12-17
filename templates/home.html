@@ -40,7 +40,7 @@
         
         <!-- Right: Actions (Buttons with Gap) -->
         <div class="d-flex gap-2">
-            <a href="/export?site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-success d-flex align-items-center justify-content-center" style="height: 38px;">
+            <a href="/export?site_id={{.SelectedSiteID}}&author_id={{.SelectedAuthorID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-success d-flex align-items-center justify-content-center" style="height: 38px;">
                 Export CSV
             </a>
             <a href="/settings" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px;">
@@ -51,50 +51,58 @@
 
     <!-- ANALYTICS TAB -->
     <div id="tab-analytics" class="tab-content" style="display: block;">
-        <!-- ROW 2: STATS GRID -->
-        <div class="row mb-4">
-            <!-- Card 1 -->
+        <!-- ROW 2: STATS CARDS (Bootstrap Grid) -->
+        <div class="row mb-4 g-3">
+            
+            <!-- Card 1: Total Sites -->
             <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body d-flex flex-column align-items-center justify-content-center">
-                        <h5 class="card-title text-muted">Total Sites</h5>
-                        <p class="card-text fs-2 fw-bold">{{.TotalSites}}</p>
-                    </div>
+                <div class="card h-100 shadow-sm border-0 text-center p-3 d-flex flex-column align-items-center justify-content-center">
+                    <h5 class="text-secondary text-uppercase small fw-bold mb-2">Total Sites</h5>
+                    <div class="display-6 fw-bold mb-0">{{.TotalSites}}</div>
                 </div>
             </div>
             
-            <!-- Card 2 -->
+            <!-- Card 2: Filter Site -->
             <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body d-flex flex-column align-items-center justify-content-center">
-                        <h5 class="card-title text-muted">Total Posts in DB</h5>
-                        <p class="card-text fs-2 fw-bold">{{.TotalPostsDB}}</p>
+                <div class="card h-100 shadow-sm border-0 text-center p-3 d-flex flex-column align-items-center justify-content-center">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <h5 class="text-secondary text-uppercase small fw-bold mb-0">Site:</h5>
+                        <form action="/" method="GET" class="m-0">
+                            <input type="hidden" name="start_date" value="{{.StartDate}}">
+                            <input type="hidden" name="end_date" value="{{.EndDate}}">
+                            <input type="hidden" name="limit" value="{{.Limit}}">
+                            <input type="hidden" name="author_id" value="0">
+                            <select name="site_id" onchange="this.form.submit()" class="form-select form-select-sm py-0" style="width: auto; max-width: 180px;">
+                                <option value="0" {{if eq .SelectedSiteID 0}}selected{{end}}>All Sites</option>
+                                {{range .Sites}}
+                                <option value="{{.ID}}" {{if eq $.SelectedSiteID .ID}}selected{{end}}>{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </form>
                     </div>
+                    <div class="display-6 fw-bold mb-0">{{.SitePostCount}}</div>
                 </div>
             </div>
             
-            <!-- Card 3 -->
+            <!-- Card 3: Filter Author -->
             <div class="col-md-4">
-                <div class="card text-center">
-                    <div class="card-body d-flex flex-column align-items-center justify-content-center">
-                        <!-- Header Row: Label + Dropdown -->
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <h5 class="card-title text-muted m-0 text-nowrap">Filtered:</h5>
-                            <form action="/" method="GET" class="m-0">
-                                <input type="hidden" name="start_date" value="{{.StartDate}}">
-                                <input type="hidden" name="end_date" value="{{.EndDate}}">
-                                <input type="hidden" name="limit" value="{{.Limit}}">
-                                <select name="site_id" onchange="this.form.submit()" class="form-select form-select-sm py-0" style="width: auto; height: 30px; font-size: 14px;">
-                                    <option value="0" {{if eq .SelectedSiteID 0}}selected{{end}}>All Sites</option>
-                                    {{range .Sites}}
-                                    <option value="{{.ID}}" {{if eq $.SelectedSiteID .ID}}selected{{end}}>{{.Name}}</option>
-                                    {{end}}
-                                </select>
-                            </form>
-                        </div>
-                        <!-- Number -->
-                        <p class="card-text fs-2 fw-bold">{{.FilteredCount}}</p>
+                <div class="card h-100 shadow-sm border-0 text-center p-3 d-flex flex-column align-items-center justify-content-center">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <h5 class="text-secondary text-uppercase small fw-bold mb-0">Author:</h5>
+                        <form action="/" method="GET" class="m-0">
+                            <input type="hidden" name="start_date" value="{{.StartDate}}">
+                            <input type="hidden" name="end_date" value="{{.EndDate}}">
+                            <input type="hidden" name="limit" value="{{.Limit}}">
+                            <input type="hidden" name="site_id" value="{{.SelectedSiteID}}">
+                            <select name="author_id" onchange="this.form.submit()" class="form-select form-select-sm py-0" style="width: auto; max-width: 180px;">
+                                <option value="0" {{if eq .SelectedAuthorID 0}}selected{{end}}>All Authors</option>
+                                {{range .Authors}}
+                                <option value="{{.ID}}" {{if eq $.SelectedAuthorID .ID}}selected{{end}}>{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </form>
                     </div>
+                    <div class="display-6 fw-bold mb-0">{{.AuthorPostCount}}</div>
                 </div>
             </div>
         </div>
@@ -105,6 +113,7 @@
             <!-- LEFT: Date Filters -->
             <form action="/" method="GET" class="d-flex align-items-center gap-2">
                 <input type="hidden" name="site_id" value="{{.SelectedSiteID}}">
+                <input type="hidden" name="author_id" value="{{.SelectedAuthorID}}">
                 <input type="hidden" name="limit" value="{{.Limit}}">
                 
                 <div class="d-flex align-items-center gap-1">
@@ -121,6 +130,7 @@
             <!-- CENTER: Items Per Page -->
             <form action="/" method="GET" class="d-flex align-items-center gap-2">
                 <input type="hidden" name="site_id" value="{{.SelectedSiteID}}">
+                <input type="hidden" name="author_id" value="{{.SelectedAuthorID}}">
                 <input type="hidden" name="start_date" value="{{.StartDate}}">
                 <input type="hidden" name="end_date" value="{{.EndDate}}">
                 <span class="text-muted fw-bold">Show:</span>
@@ -135,8 +145,8 @@
             <div class="d-flex align-items-center gap-1">
                 <!-- First/Prev -->
                 {{if .HasPrev}}
-                <a href="/?page=1&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">First</a>
-                <a href="/?page={{.PrevPage}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Prev</a>
+                <a href="/?page=1&limit={{.Limit}}&site_id={{.SelectedSiteID}}&author_id={{.SelectedAuthorID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">First</a>
+                <a href="/?page={{.PrevPage}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&author_id={{.SelectedAuthorID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-outline-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Prev</a>
                 {{else}}
                 <button class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>First</button>
                 <button class="btn btn-outline-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>Prev</button>
@@ -149,8 +159,8 @@
                 
                 <!-- Next/Last -->
                 {{if .HasNext}}
-                <a href="/?page={{.NextPage}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Next</a>
-                <a href="/?page={{.TotalPages}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Last</a>
+                <a href="/?page={{.NextPage}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&author_id={{.SelectedAuthorID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Next</a>
+                <a href="/?page={{.TotalPages}}&limit={{.Limit}}&site_id={{.SelectedSiteID}}&author_id={{.SelectedAuthorID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-primary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">Last</a>
                 {{else}}
                 <button class="btn btn-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>Next</button>
                 <button class="btn btn-secondary d-flex align-items-center justify-content-center" style="height: 38px; width: 50px;" disabled>Last</button>
@@ -261,6 +271,7 @@
             </div>
         </div>
     </div>
+
 </div>
 
 <script>
