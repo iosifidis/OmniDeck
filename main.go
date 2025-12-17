@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/csv"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -235,6 +236,21 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
+func mapSortColumn(field string) string {
+	switch field {
+	case "title":
+		return "posts.title"
+	case "author":
+		return "authors.name"
+	case "site":
+		return "sites.name"
+	case "date":
+		return "posts.date"
+	default:
+		return "posts.date"
+	}
+}
+
 func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(userContextKey).(*User)
 	activeTab := r.URL.Query().Get("tab")
@@ -242,57 +258,32 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		activeTab = "analytics"
 	}
 
+	// 1. Global Stats
 	var totalSites, totalPostsDB int64
 	a.db.Model(&Site{}).Count(&totalSites)
 	a.db.Model(&Post{}).Count(&totalPostsDB)
-
 	var sites []Site
 	a.db.Order("name asc").Find(&sites)
 
-	// Parse site filter
+	// 2. Parse Inputs
 	siteFilter := uint(0)
-	selectedSiteName := "All Sites"
 	if v := r.URL.Query().Get("site_id"); v != "" {
 		if id, err := strconv.Atoi(v); err == nil {
 			siteFilter = uint(id)
-			for _, site := range sites {
-				if site.ID == siteFilter {
-					selectedSiteName = site.Name
-					break
-				}
-			}
 		}
 	}
-
-	// Parse author filter
 	authorFilter := uint(0)
 	if v := r.URL.Query().Get("author_id"); v != "" {
-		if id, err := strconv.Atoi(v); err == nil && id > 0 {
+		if id, err := strconv.Atoi(v); err == nil {
 			authorFilter = uint(id)
 		}
 	}
 
-	// Pagination
-	page := 1
-	if v := r.URL.Query().Get("page"); v != "" {
-		if p, err := strconv.Atoi(v); err == nil && p > 0 {
-			page = p
-		}
-	}
-	limit := 10
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if l, err := strconv.Atoi(v); err == nil && l > 0 && l <= 100 {
-			limit = l
-		}
-	}
-
-	// Date range parsing (defaults: last month to today)
 	startDateStr := r.URL.Query().Get("start_date")
 	endDateStr := r.URL.Query().Get("end_date")
 	now := time.Now()
 	endDate := startOfDay(now).Add(24*time.Hour - time.Nanosecond)
 	startDate := startOfDay(now.AddDate(0, -1, 0))
-
 	if endDateStr != "" {
 		if parsed, err := time.Parse("2006-01-02", endDateStr); err == nil {
 			endDate = startOfDay(parsed).Add(24*time.Hour - time.Nanosecond)
@@ -310,67 +301,67 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		endDateStr = endDate.Format("2006-01-02")
 	}
 
-	// Fetch Authors for Dropdown (Only those with posts on the selected site)
+	// 3. Authors Dropdown
 	var authors []Author
-	authorQuery := a.db.Table("authors").
+	authQ := a.db.Table("authors").
 		Joins("JOIN posts ON posts.author_id = authors.id").
-		Select("authors.id, authors.name").
-		Group("authors.name").
-		Order("authors.name asc")
-
+		Select("DISTINCT authors.name, MIN(authors.id) as id").
+		Group("authors.name").Order("authors.name asc")
 	if siteFilter != 0 {
-		authorQuery = authorQuery.Where("posts.site_id = ?", siteFilter)
+		authQ = authQ.Where("posts.site_id = ?", siteFilter)
 	}
+	authQ.Find(&authors)
 
-	authorQuery.Find(&authors)
-
-	// Identify selected author name (for filtering by name instead of ID)
-	authorName := ""
+	// 4. Resolve Author Name (for Filter)
+	var targetName string
 	if authorFilter != 0 {
-		var selectedAuthor Author
-		if err := a.db.First(&selectedAuthor, authorFilter).Error; err == nil {
-			authorName = selectedAuthor.Name
+		var temp Author
+		if err := a.db.First(&temp, authorFilter).Error; err == nil {
+			targetName = temp.Name
 		}
 	}
 
-	// Count posts for Card 2: Date + Site (ignore author)
-	siteCountQuery := a.db.Model(&Post{}).Where("date >= ? AND date <= ?", startDate, endDate)
-	if siteFilter != 0 {
-		siteCountQuery = siteCountQuery.Where("site_id = ?", siteFilter)
-	}
+	// --- 5. INDEPENDENT COUNTS (Raw SQL) ---
+
+	// A. SITE COUNT (Ignores Author)
 	var sitePostCount int64
-	siteCountQuery.Count(&sitePostCount)
-
-	// Count posts for Card 3: Date + Site + Author Name
-	authorCountQuery := a.db.Model(&Post{}).
-		Joins("JOIN authors ON authors.id = posts.author_id").
-		Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
+	sqlSite := "SELECT COUNT(*) FROM posts WHERE date >= ? AND date <= ?"
+	argsSite := []interface{}{startDate, endDate}
 	if siteFilter != 0 {
-		authorCountQuery = authorCountQuery.Where("posts.site_id = ?", siteFilter)
+		sqlSite += " AND site_id = ?"
+		argsSite = append(argsSite, siteFilter)
 	}
-	if authorName != "" {
-		authorCountQuery = authorCountQuery.Where("authors.name = ?", authorName)
-	}
+	a.db.Raw(sqlSite, argsSite...).Scan(&sitePostCount)
+
+	// B. AUTHOR COUNT (Includes Author)
 	var authorPostCount int64
-	authorCountQuery.Count(&authorPostCount)
-	if authorName == "" {
-		authorPostCount = sitePostCount // show site-level count when no author selected
-	}
-
-	// Table/query count with filters (date + site + author name)
-	countQuery := a.db.Model(&Post{}).
-		Joins("JOIN authors ON authors.id = posts.author_id").
-		Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
+	sqlAuth := "SELECT COUNT(*) FROM posts JOIN authors ON posts.author_id = authors.id WHERE posts.date >= ? AND posts.date <= ?"
+	argsAuth := []interface{}{startDate, endDate}
 	if siteFilter != 0 {
-		countQuery = countQuery.Where("posts.site_id = ?", siteFilter)
+		sqlAuth += " AND posts.site_id = ?"
+		argsAuth = append(argsAuth, siteFilter)
 	}
-	if authorName != "" {
-		countQuery = countQuery.Where("authors.name = ?", authorName)
+	if targetName != "" {
+		sqlAuth += " AND authors.name = ?"
+		argsAuth = append(argsAuth, targetName)
 	}
-	var filteredTotal int64
-	countQuery.Count(&filteredTotal)
+	a.db.Raw(sqlAuth, argsAuth...).Scan(&authorPostCount)
 
-	totalPages := int((filteredTotal + int64(limit) - 1) / int64(limit))
+	// 6. Data Fetch (Uses Author Filter)
+	page := 1
+	if v := r.URL.Query().Get("page"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+			page = p
+		}
+	}
+	limit := 10
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if l, err := strconv.Atoi(v); err == nil && l > 0 {
+			limit = l
+		}
+	}
+	// Pagination based on the Author/Filtered count
+	totalPages := int((authorPostCount + int64(limit) - 1) / int64(limit))
 	if totalPages == 0 {
 		totalPages = 1
 	}
@@ -379,35 +370,44 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * limit
 
-	// Fetch posts for table with name-based author filtering
-	query := a.db.Model(&Post{}).
-		Preload("Author").
-		Preload("Site").
-		Joins("JOIN authors ON authors.id = posts.author_id").
+	// Build Query
+	dataQ := a.db.Model(&Post{}).Preload("Author").Preload("Site").
 		Where("posts.date >= ? AND posts.date <= ?", startDate, endDate)
+
 	if siteFilter != 0 {
-		query = query.Where("posts.site_id = ?", siteFilter)
+		dataQ = dataQ.Where("posts.site_id = ?", siteFilter)
 	}
-	if authorName != "" {
-		query = query.Where("authors.name = ?", authorName)
+	if targetName != "" {
+		dataQ = dataQ.Joins("JOIN authors ON authors.id = posts.author_id").
+			Where("authors.name = ?", targetName)
 	}
+
+	// Sort
+	sortField := r.URL.Query().Get("sort")
+	if sortField == "" {
+		sortField = "date"
+	}
+	orderDir := strings.ToLower(r.URL.Query().Get("order"))
+	if orderDir != "asc" {
+		orderDir = "desc"
+	}
+	dbSort := mapSortColumn(sortField)
 
 	var posts []Post
-	query.Order("posts.date desc").Limit(limit).Offset(offset).Find(&posts)
+	dataQ.Order(fmt.Sprintf("%s %s", dbSort, orderDir)).Limit(limit).Offset(offset).Find(&posts)
 
+	// 7. Render
 	data := DashboardData{
 		User:             user,
 		TotalSites:       totalSites,
 		TotalPostsDB:     totalPostsDB,
-		FilteredCount:    filteredTotal,
-		SelectedSiteName: selectedSiteName,
+		FilteredCount:    authorPostCount, // Card 3 (Filtered)
+		SitePostCount:    sitePostCount,   // Card 2 (Site Total)
 		Sites:            sites,
 		Authors:          authors,
 		Posts:            posts,
 		SelectedSiteID:   siteFilter,
 		SelectedAuthorID: authorFilter,
-		SitePostCount:    sitePostCount,
-		AuthorPostCount:  authorPostCount,
 		ActiveTab:        activeTab,
 		CurrentPage:      page,
 		TotalPages:       totalPages,
@@ -419,7 +419,6 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		StartDate:        startDateStr,
 		EndDate:          endDateStr,
 	}
-
 	a.renderTemplate(w, "home.html", data)
 }
 
