@@ -79,6 +79,82 @@ func CollectData(db *gorm.DB, site *Site) error {
 	return nil
 }
 
+// FetchArchive fetches historical posts from the WordPress REST API within a date range.
+func FetchArchive(db *gorm.DB, site *Site, startDate, endDate time.Time) error {
+	client := &http.Client{Timeout: 15 * time.Second}
+
+	// Format dates in ISO8601 format (before and after params are inclusive/exclusive)
+	afterParam := startDate.Format("2006-01-02T15:04:05")
+	beforeParam := endDate.Format("2006-01-02T15:04:05")
+
+	endpoint := fmt.Sprintf(
+		"%s/wp-json/wp/v2/posts?_embed&after=%s&before=%s&per_page=100",
+		strings.TrimSuffix(site.URL, "/"),
+		afterParam,
+		beforeParam,
+	)
+
+	resp, err := client.Get(endpoint)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("unexpected status %d from %s", resp.StatusCode, endpoint)
+	}
+
+	var wpPosts []wpPost
+	if err := json.NewDecoder(resp.Body).Decode(&wpPosts); err != nil {
+		return err
+	}
+
+	// Save posts using the same logic as CollectData
+	for _, p := range wpPosts {
+		layout := "2006-01-02T15:04:05"
+		publishedAt, err := time.Parse(time.RFC3339, p.Date)
+		if err != nil {
+			publishedAt, err = time.Parse(layout, p.Date)
+			if err != nil {
+				log.Printf("unable to parse post date %q: %v", p.Date, err)
+				publishedAt = time.Now()
+			}
+		}
+
+		authorName := "Unknown"
+		wpAuthorID := 0
+		if len(p.Embedded.Author) > 0 {
+			authorName = p.Embedded.Author[0].Name
+			wpAuthorID = p.Embedded.Author[0].ID
+		}
+
+		var author Author
+		db.Where("wpid = ? AND site_id = ?", wpAuthorID, site.ID).First(&author)
+		if author.ID == 0 {
+			author = Author{Name: authorName, WPID: wpAuthorID, SiteID: site.ID}
+			db.Create(&author)
+		} else if author.Name != authorName {
+			author.Name = authorName
+			db.Save(&author)
+		}
+
+		var post Post
+		db.Where("link = ? AND site_id = ?", p.Link, site.ID).First(&post)
+		post.Title = p.Title.Rendered
+		post.Date = publishedAt
+		post.Link = p.Link
+		post.SiteID = site.ID
+		post.AuthorID = author.ID
+		if post.ID == 0 {
+			db.Create(&post)
+		} else {
+			db.Save(&post)
+		}
+	}
+
+	return nil
+}
+
 type wpPost struct {
 	ID    int    `json:"id"`
 	Date  string `json:"date"`

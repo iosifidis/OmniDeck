@@ -303,6 +303,32 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	var filteredTotal int64
 	countQuery.Count(&filteredTotal)
 
+	// Historical data fetching: if no results and date range is set, fetch from API
+	if filteredTotal == 0 && (startDateStr != "" || endDateStr != "") {
+		var sitesToFetch []Site
+		if siteFilter != 0 {
+			a.db.First(&sitesToFetch, siteFilter)
+			sitesToFetch = []Site{sitesToFetch[0]}
+		} else {
+			a.db.Find(&sitesToFetch)
+		}
+
+		for _, s := range sitesToFetch {
+			siteCopy := s
+			if err := FetchArchive(a.db, &siteCopy, startDate, endDate); err != nil {
+				log.Printf("FetchArchive failed for site %d: %v", siteCopy.ID, err)
+			}
+		}
+
+		// Re-query after fetching
+		countQuery = a.db.Model(&Post{})
+		if siteFilter != 0 {
+			countQuery = countQuery.Where("site_id = ?", siteFilter)
+		}
+		countQuery = countQuery.Where("date >= ? AND date <= ?", startDate, endDate)
+		countQuery.Count(&filteredTotal)
+	}
+
 	totalPages := int((filteredTotal + int64(limit) - 1) / int64(limit))
 	if totalPages == 0 {
 		totalPages = 1
