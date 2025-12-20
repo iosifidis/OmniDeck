@@ -301,11 +301,12 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		endDateStr = endDate.Format("2006-01-02")
 	}
 
-	// 3. Authors Dropdown
+	// 3. Authors Dropdown (Only show authors with posts in the date range)
 	var authors []Author
 	authQ := a.db.Table("authors").
 		Joins("JOIN posts ON posts.author_id = authors.id").
 		Select("DISTINCT authors.name, MIN(authors.id) as id").
+		Where("posts.date >= ? AND posts.date <= ?", startDate, endDate).
 		Group("authors.name").Order("authors.name asc")
 	if siteFilter != 0 {
 		authQ = authQ.Where("posts.site_id = ?", siteFilter)
