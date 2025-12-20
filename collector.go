@@ -102,6 +102,7 @@ func saveSinglePost(db *gorm.DB, site *Site, p wpPost) {
 	post.Title = p.Title.Rendered
 	post.Date = publishedAt
 	post.Link = p.Link
+	post.CommentCount = p.CommentCount
 	post.SiteID = site.ID
 	post.AuthorID = author.ID
 	if post.ID == 0 {
@@ -177,9 +178,10 @@ func FetchArchive(db *gorm.DB, site *Site, startDate, endDate time.Time) error {
 }
 
 type wpPost struct {
-	ID    int    `json:"id"`
-	Date  string `json:"date"`
-	Title struct {
+	ID           int    `json:"id"`
+	Date         string `json:"date"`
+	CommentCount int    `json:"comment_count"`
+	Title        struct {
 		Rendered string `json:"rendered"`
 	} `json:"title"`
 	Link     string `json:"link"`

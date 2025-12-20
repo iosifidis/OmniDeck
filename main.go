@@ -246,6 +246,8 @@ func mapSortColumn(field string) string {
 		return "sites.name"
 	case "date":
 		return "posts.date"
+	case "comments":
+		return "posts.comment_count"
 	default:
 		return "posts.date"
 	}
@@ -378,10 +380,6 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	if siteFilter != 0 {
 		dataQ = dataQ.Where("posts.site_id = ?", siteFilter)
 	}
-	if targetName != "" {
-		dataQ = dataQ.Joins("JOIN authors ON authors.id = posts.author_id").
-			Where("authors.name = ?", targetName)
-	}
 
 	// Sort
 	sortField := r.URL.Query().Get("sort")
@@ -393,6 +391,21 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		orderDir = "desc"
 	}
 	dbSort := mapSortColumn(sortField)
+
+	// Add necessary JOINs for sorting by author or site
+	if sortField == "author" {
+		dataQ = dataQ.Joins("LEFT JOIN authors ON authors.id = posts.author_id")
+	} else if sortField == "site" {
+		dataQ = dataQ.Joins("LEFT JOIN sites ON sites.id = posts.site_id")
+	}
+
+	// Apply author filter after JOINs
+	if targetName != "" {
+		if sortField != "author" {
+			dataQ = dataQ.Joins("JOIN authors ON authors.id = posts.author_id")
+		}
+		dataQ = dataQ.Where("authors.name = ?", targetName)
+	}
 
 	var posts []Post
 	dataQ.Order(fmt.Sprintf("%s %s", dbSort, orderDir)).Limit(limit).Offset(offset).Find(&posts)
@@ -466,7 +479,7 @@ func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte{0xEF, 0xBB, 0xBF})
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
-	writer.Write([]string{"Date", "Title", "Author", "Site", "Link"})
+	writer.Write([]string{"Date", "Title", "Author", "Site", "Comments", "Link"})
 	for _, p := range posts {
 		authorName := "Unknown"
 		if p.AuthorID != 0 {
@@ -480,6 +493,7 @@ func (a *App) handleExport(w http.ResponseWriter, r *http.Request) {
 			p.Title,
 			authorName,
 			p.Site.Name,
+			fmt.Sprintf("%d", p.CommentCount),
 			p.Link,
 		})
 	}

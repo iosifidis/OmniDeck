@@ -33,12 +33,13 @@ type Author struct {
 
 // Post stores WordPress post metadata.
 type Post struct {
-	ID       uint      `gorm:"primaryKey"`
-	Title    string    `gorm:"not null"`
-	Date     time.Time `gorm:"index"`
-	Link     string    `gorm:"not null"`
-	SiteID   uint      `gorm:"index"`
-	Site     Site
-	AuthorID uint `gorm:"index"`
-	Author   Author
+	ID           uint      `gorm:"primaryKey"`
+	Title        string    `gorm:"not null"`
+	Date         time.Time `gorm:"index"`
+	Link         string    `gorm:"not null"`
+	CommentCount int       `gorm:"default:0"`
+	SiteID       uint      `gorm:"index"`
+	Site         Site
+	AuthorID     uint `gorm:"index"`
+	Author       Author
 }
