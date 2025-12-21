@@ -107,10 +107,10 @@
         </div>
 
         <!-- ROW 3: TOOLBAR -->
-        <div class="d-flex flex-column flex-lg-row flex-wrap justify-content-between align-items-stretch align-items-lg-center bg-white p-3 rounded border mb-4 shadow-sm gap-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center bg-white p-3 rounded border mb-4 shadow-sm gap-3">
             
             <!-- LEFT: Date Filters -->
-            <form action="/" method="GET" class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 w-100 w-lg-auto">
+            <form action="/" method="GET" class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2">
                 <input type="hidden" name="site_id" value="{{.SelectedSiteID}}">
                 <input type="hidden" name="author_id" value="{{.SelectedAuthorID}}">
                 <input type="hidden" name="limit" value="{{.Limit}}">
@@ -127,7 +127,7 @@
             </form>
 
             <!-- CENTER: Items Per Page -->
-            <form action="/" method="GET" class="d-flex align-items-center gap-2 w-100 w-lg-auto justify-content-center">
+            <form action="/" method="GET" class="d-flex align-items-center gap-2">
                 <input type="hidden" name="site_id" value="{{.SelectedSiteID}}">
                 <input type="hidden" name="author_id" value="{{.SelectedAuthorID}}">
                 <input type="hidden" name="start_date" value="{{.StartDate}}">
@@ -141,7 +141,7 @@
             </form>
 
             <!-- RIGHT: Pagination -->
-            <div class="d-flex align-items-center gap-1 w-100 w-lg-auto justify-content-center">
+            <div class="d-flex align-items-center gap-1">
                 <!-- First/Prev -->
                 {{if .HasPrev}}
                 <a href="/?page=1&limit={{.Limit}}&site_id={{.SelectedSiteID}}&author_id={{.SelectedAuthorID}}&start_date={{.StartDate}}&end_date={{.EndDate}}" class="btn btn-outline-primary d-none d-md-flex align-items-center justify-content-center" style="height: 38px; width: 50px;">First</a>
