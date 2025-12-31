@@ -41,7 +41,12 @@ func StartMonitoring(db *gorm.DB, interval time.Duration, stop <-chan struct{}) 
 				db.Find(&sites)
 				for _, s := range sites {
 					siteCopy := s
-					go CheckSite(db, &siteCopy)
+					go func(site *Site) {
+						CheckSite(db, site)
+						if err := CollectData(db, site); err != nil {
+							log.Printf("error collecting data for site %s: %v", site.Name, err)
+						}
+					}(&siteCopy)
 				}
 			case <-stop:
 				return
