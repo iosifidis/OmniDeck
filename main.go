@@ -92,7 +92,7 @@ func (s *SessionManager) Delete(sessionID string) {
 }
 
 func main() {
-	db, err := gorm.Open(sqlite.Open("data.db"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("data.db?_journal_mode=WAL&_busy_timeout=10000"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
@@ -204,7 +204,12 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 	var user User
 	if err := a.db.Where("username = ?", username).First(&user).Error; err != nil {
-		a.renderTemplate(w, "login.html", map[string]string{"Error": "Invalid credentials"})
+		if err == gorm.ErrRecordNotFound {
+			a.renderTemplate(w, "login.html", map[string]string{"Error": "Invalid credentials"})
+		} else {
+			log.Printf("Login DB error: %v", err)
+			a.renderTemplate(w, "login.html", map[string]string{"Error": "System error during login"})
+		}
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {

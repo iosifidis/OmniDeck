@@ -42,6 +42,11 @@ func StartMonitoring(db *gorm.DB, interval time.Duration, stop <-chan struct{}) 
 				for _, s := range sites {
 					siteCopy := s
 					go func(site *Site) {
+						defer func() {
+							if r := recover(); r != nil {
+								log.Printf("Recovered from panic in site monitor for %s: %v", site.Name, r)
+							}
+						}()
 						CheckSite(db, site)
 						if err := CollectData(db, site); err != nil {
 							log.Printf("error collecting data for site %s: %v", site.Name, err)
