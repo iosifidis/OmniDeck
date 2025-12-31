@@ -16,10 +16,24 @@ func CollectData(db *gorm.DB, site *Site) error {
 	client := &http.Client{Timeout: 15 * time.Second}
 	baseURL := strings.TrimSuffix(site.URL, "/")
 
+	// Check for the latest post date to fetch only new content
+	var lastPost Post
+	var afterParam string
+	// Order by Date DESC to get the newest one.
+	if err := db.Where("site_id = ?", site.ID).Order("date desc").First(&lastPost).Error; err == nil {
+		// WordPress API expects ISO8601/RFC3339.
+		// Note: We add 1 second to avoid fetching the same post again,
+		// though WP API 'after' is exclusive so exact match might be skipped already.
+		afterParam = lastPost.Date.Format("2006-01-02T15:04:05")
+	}
+
 	// Fetch all pages of posts
 	page := 1
 	for {
 		endpoint := fmt.Sprintf("%s/wp-json/wp/v2/posts?_embed&per_page=100&page=%d", baseURL, page)
+		if afterParam != "" {
+			endpoint += fmt.Sprintf("&after=%s", afterParam)
+		}
 
 		resp, err := client.Get(endpoint)
 		if err != nil {

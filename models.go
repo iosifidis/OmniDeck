@@ -36,7 +36,7 @@ type Post struct {
 	ID           uint      `gorm:"primaryKey"`
 	Title        string    `gorm:"not null"`
 	Date         time.Time `gorm:"index"`
-	Link         string    `gorm:"not null"`
+	Link         string    `gorm:"not null;uniqueIndex"`
 	CommentCount int       `gorm:"default:0"`
 	SiteID       uint      `gorm:"index"`
 	Site         Site
