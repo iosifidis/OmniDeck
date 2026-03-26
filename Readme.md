@@ -318,6 +318,8 @@ LIMIT 15
 
 ---
 
+## Screenshot
+
 ![Εικόνα Dashboard](./public-dashboard.png)
 
 ---
